@@ -18,6 +18,9 @@ final case class WriterT[F[_], W, A](run: F[(W, A)]) { self =>
   def mapWritten[X](f: W => X)(implicit F: Functor[F]): WriterT[F, X, A] =
     mapValue(wa => (f(wa._1), wa._2))
 
+  def mapT[G[_], W2, B](f: F[(W, A)] => G[(W2, B)]): WriterT[G, W2, B] =
+    WriterT(f(run))
+
   def written(implicit F: Functor[F]): F[W] =
     F.map(run)(_._1)
 
@@ -230,7 +233,7 @@ sealed abstract class WriterTInstances3 extends WriterTInstances4 {
 }
 
 sealed abstract class WriterTInstances2 extends WriterTInstances3 {
-  implicit def writerComonad[W]: Comonad[Writer[W, ?]] = 
+  implicit def writerComonad[W]: Comonad[Writer[W, ?]] =
     new WriterComonad[W] {
       implicit def F = implicitly
     }
@@ -241,7 +244,7 @@ sealed abstract class WriterTInstances1 extends WriterTInstances2 {
     new WriterTBitraverse[Id] {
       implicit def F = idInstance
     }
-  implicit def writerTraverse[W]: Traverse[Writer[W, ?]] = 
+  implicit def writerTraverse[W]: Traverse[Writer[W, ?]] =
     new WriterTTraverse[Id, W] {
       implicit def F = idInstance
     }
@@ -252,7 +255,7 @@ sealed abstract class WriterTInstances0 extends WriterTInstances1 {
     new WriterTBitraverse[F] {
       implicit def F = F0
     }
-  implicit def writerTTraverse[F[_], W](implicit F0: Traverse[F]): Traverse[WriterT[F, W, ?]] = 
+  implicit def writerTTraverse[F[_], W](implicit F0: Traverse[F]): Traverse[WriterT[F, W, ?]] =
     new WriterTTraverse[F, W] {
       implicit def F = F0
     }
@@ -422,7 +425,8 @@ private trait WriterTHoist[W] extends Hoist[λ[(α[_], β) => WriterT[α, W, β]
 
   def hoist[M[_]: Monad, N[_]](f: M ~> N) =
     new (WriterT[M, W, ?] ~> WriterT[N, W, ?]) {
-      def apply[A](fa: WriterT[M, W, A]) = WriterT(f(fa.run))
+      def apply[A](fa: WriterT[M, W, A]) =
+        fa.mapT(f)
     }
 }
 

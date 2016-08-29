@@ -10,6 +10,9 @@ final case class OptionT[F[_], A](run: F[Option[A]]) {
 
   def map[B](f: A => B)(implicit F: Functor[F]): OptionT[F, B] = new OptionT[F, B](mapO(_ map f))
 
+  def mapT[G[_], B](f: F[Option[A]] => G[Option[B]]): OptionT[G, B] =
+    OptionT(f(run))
+
   def flatMap[B](f: A => OptionT[F, B])(implicit F: Monad[F]): OptionT[F, B] = new OptionT[F, B](
     F.bind(self.run) {
       case None    => F.point(None: Option[B])
@@ -187,18 +190,18 @@ private trait OptionTFunctor[F[_]] extends Functor[OptionT[F, ?]] {
 
 private trait OptionTApply[F[_]] extends Apply[OptionT[F, ?]] with OptionTFunctor[F]{
   implicit def F: Monad[F]
-  
+
   override final def ap[A, B](fa: => OptionT[F, A])(f: => OptionT[F, A => B]): OptionT[F, B] = fa ap f
 }
 
 private trait OptionTBind[F[_]] extends Bind[OptionT[F, ?]] with OptionTFunctor[F]{
   implicit def F: Monad[F]
-  
+
   final def bind[A, B](fa: OptionT[F, A])(f: A => OptionT[F, B]): OptionT[F, B] = fa flatMap f
 }
 
 private trait OptionTBindRec[F[_]] extends BindRec[OptionT[F, ?]] with OptionTBind[F] {
-  implicit def F: Monad[F] 
+  implicit def F: Monad[F]
   implicit def B: BindRec[F]
 
   final def tailrecM[A, B](f: A => OptionT[F, A \/ B])(a: A): OptionT[F, B] =
@@ -243,7 +246,8 @@ private trait OptionTHoist extends Hoist[OptionT] {
 
   def hoist[M[_]: Monad, N[_]](f: M ~> N) =
     new (OptionT[M, ?] ~> OptionT[N, ?]) {
-      def apply[A](fa: OptionT[M, A]): OptionT[N, A] = OptionT(f.apply(fa.run))
+      def apply[A](fa: OptionT[M, A]): OptionT[N, A] =
+        fa.mapT(f)
     }
 
   implicit def apply[G[_] : Monad]: Monad[OptionT[G, ?]] = OptionT.optionTMonadPlus[G]
