@@ -1,6 +1,7 @@
 package scalaz
 
 import java.lang.ref.WeakReference
+import java.util.concurrent.atomic.AtomicReference
 
 /** Like [[scala.collection.immutable.Stream]], but doesn't save
   * computed values.  As such, it can be used to represent similar
@@ -64,7 +65,7 @@ sealed abstract class EphemeralStream[A] {
   def map[B](f: A => B): EphemeralStream[B] =
     flatMap(x => EphemeralStream(f(x)))
 
-  def length = {
+  def length: Int = {
     def addOne(c: => Int)(a: => A) = 1 + c
     foldLeft(0)(addOne _)
   }
@@ -142,6 +143,10 @@ sealed abstract class EphemeralStream[A] {
 
   def zipWithIndex: EphemeralStream[(A, Int)] =
     zip(iterate(0)(_ + 1))
+
+  def memoized: EphemeralStream[A] =
+    if (isEmpty) this
+    else consImpl(weakMemo(head()), weakMemo(tail().memoized))
 }
 
 sealed abstract class EphemeralStreamInstances {
@@ -216,7 +221,7 @@ sealed abstract class EphemeralStreamInstances {
         if (these.isEmpty) None else Some(these.head())
       }
     }
-    def tailrecM[A, B](f: A => EphemeralStream[A \/ B])(a: A): EphemeralStream[B] = {
+    def tailrecM[A, B](a: A)(f: A => EphemeralStream[A \/ B]): EphemeralStream[B] = {
       def go(s: EphemeralStream[A \/ B]): EphemeralStream[B] = {
         @annotation.tailrec
         def rec(abs: EphemeralStream[A \/ B]): EphemeralStream[B] =
@@ -248,12 +253,15 @@ object EphemeralStream extends EphemeralStreamInstances {
     def tail: () => Nothing = () => sys.error("tail of empty stream")
   }
 
-  def cons[A](a: => A, as: => EphemeralStream[A]) = new EphemeralStream[A] {
+  private def consImpl[A](a: () => A, as: () => EphemeralStream[A]) = new EphemeralStream[A] {
     def isEmpty = false
 
-    val head = weakMemo(a)
-    val tail = weakMemo(as)
+    val head = a
+    val tail = as
   }
+
+  def cons[A](a: => A, as: => EphemeralStream[A]): EphemeralStream[A] =
+    consImpl(() => a, () => as)
 
   def unfold[A, B](b: => B)(f: B => Option[(A, B)]): EphemeralStream[A] =
     f(b) match {
@@ -290,17 +298,25 @@ object EphemeralStream extends EphemeralStreamInstances {
   }
 
   def weakMemo[V](f: => V): () => V = {
-    val latch = new Object
-    // TODO I don't think this annotation does anything, as `v` isn't a class member.
-    @volatile var v: Option[WeakReference[V]] = None
+    val ref: AtomicReference[WeakReference[V]] = new AtomicReference()
     () => {
-      val a = v.map(x => x.get)
-      if (a.isDefined && a.get != null) a.get
-      else latch.synchronized {
-        val x = f
-        v = Some(new WeakReference(x))
-        x
+      @inline
+      def genNew(x: V, old: WeakReference[V]): V = {
+        if (ref.compareAndSet(old, new WeakReference(x)))
+          x
+        else {
+          val crt = ref.get.get
+          if (crt != null) crt
+          else x
+        }
       }
+      val v = ref.get()
+      if (v != null) {
+        val crt = v.get()
+        if (crt == null) {
+          genNew(f, v)
+        } else crt
+      } else genNew(f, v)
     }
   }
 

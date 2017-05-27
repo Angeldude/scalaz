@@ -36,7 +36,7 @@ final case class WriterT[F[_], W, A](run: F[(W, A)]) { self =>
   def :++>>(f: A => W)(implicit F: Functor[F], W: Semigroup[W]): WriterT[F, W, A] =
     mapValue(wa => (W.append(wa._1, f(wa._2)), wa._2))
 
-  def <++:(w: => W)(implicit F: Functor[F], W: Semigroup[W]): WriterT[F, W, A] =
+  def <++:(w: W)(implicit F: Functor[F], W: Semigroup[W]): WriterT[F, W, A] =
     mapWritten(W.append(w, _))
 
   def <<++:(f: A => W)(implicit F: Functor[F], s: Semigroup[W]): WriterT[F, W, A] =
@@ -69,12 +69,12 @@ final case class WriterT[F[_], W, A](run: F[(W, A)]) { self =>
     })(WriterT(_))
   }
 
-  def foldRight[B](z: => B)(f: (A, => B) => B)(implicit F: Foldable[F]) =
+  def foldRight[B](z: => B)(f: (A, => B) => B)(implicit F: Foldable[F]): B =
     F.foldr(run, z) { a => b =>
       f(a._2, b)
     }
 
-  def bimap[C, D](f: W => C, g: A => D)(implicit F: Functor[F]) =
+  def bimap[C, D](f: W => C, g: A => D)(implicit F: Functor[F]): WriterT[F, C, D] =
     writerT[F, C, D](F.map(run)({
       case (a, b) => (f(a), g(b))
     }))
@@ -82,7 +82,7 @@ final case class WriterT[F[_], W, A](run: F[(W, A)]) { self =>
   def leftMap[C](f: W => C)(implicit F: Functor[F]): WriterT[F, C, A] =
     bimap(f, identity)
 
-  def bitraverse[G[_], C, D](f: W => G[C], g: A => G[D])(implicit G: Applicative[G], F: Traverse[F]) =
+  def bitraverse[G[_], C, D](f: W => G[C], g: A => G[D])(implicit G: Applicative[G], F: Traverse[F]): G[WriterT[F, C, D]] =
     G.map(F.traverse[G, (W, A), (C, D)](run) {
       case (a, b) => G.tuple2(f(a), g(b))
     })(writerT(_))
@@ -346,7 +346,7 @@ private trait WriterTBindRec[F[_], W] extends BindRec[WriterT[F, W, ?]] with Wri
   implicit def F: BindRec[F]
   implicit def A: Applicative[F]
 
-  def tailrecM[A, B](f: A => WriterT[F, W, A \/ B])(a: A): WriterT[F, W, B] = {
+  def tailrecM[A, B](a: A)(f: A => WriterT[F, W, A \/ B]): WriterT[F, W, B] = {
     def go(t: (W, A)): F[(W, A) \/ (W, B)] =
       F.map(f(t._2).run) {
         case (w0, e) =>
@@ -355,7 +355,7 @@ private trait WriterTBindRec[F[_], W] extends BindRec[WriterT[F, W, ?]] with Wri
       }
 
     WriterT(F.bind(f(a).run) {
-      case (w, -\/(a0)) => F.tailrecM(go)((w, a0))
+      case (w, -\/(a0)) => F.tailrecM((w, a0))(go)
       case (w, \/-(b)) => A.point((w, b))
     })
   }
@@ -424,10 +424,7 @@ private trait WriterTHoist[W] extends Hoist[λ[(α[_], β) => WriterT[α, W, β]
   implicit def apply[M[_]: Monad]: Monad[WriterT[M, W, ?]] = WriterT.writerTMonad
 
   def hoist[M[_]: Monad, N[_]](f: M ~> N) =
-    new (WriterT[M, W, ?] ~> WriterT[N, W, ?]) {
-      def apply[A](fa: WriterT[M, W, A]) =
-        fa.mapT(f)
-    }
+    λ[WriterT[M, W, ?] ~> WriterT[N, W, ?]](_ mapT f)
 }
 
 private trait WriterTMonadListen[F[_], W] extends MonadListen[WriterT[F, W, ?], W] with WriterTMonad[F, W] {

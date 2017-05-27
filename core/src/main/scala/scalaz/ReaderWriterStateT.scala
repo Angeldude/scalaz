@@ -158,7 +158,7 @@ private trait ReaderWriterStateTBindRec[F[_], R, W, S] extends BindRec[ReaderWri
   implicit def F: BindRec[F]
   implicit def A: Monad[F]
 
-  def tailrecM[A, B](f: A => ReaderWriterStateT[F, R, W, S, A \/ B])(a: A): ReaderWriterStateT[F, R, W, S, B] = {
+  def tailrecM[A, B](a: A)(f: A => ReaderWriterStateT[F, R, W, S, A \/ B]): ReaderWriterStateT[F, R, W, S, B] = {
     def go(r: R)(t: (W, A, S)): F[(W, A, S) \/ (W, B, S)] =
       F.map(f(t._2).run(r, t._3)) {
         case (w0, e, s0) =>
@@ -167,7 +167,7 @@ private trait ReaderWriterStateTBindRec[F[_], R, W, S] extends BindRec[ReaderWri
       }
 
     ReaderWriterStateT((r, s) => F.bind(f(a).run(r, s)) {
-      case (w, -\/(a0), s0) => F.tailrecM(go(r))(w, a0, s0)
+      case (w, -\/(a0), s0) => F.tailrecM((w, a0, s0))(go(r))
       case (w, \/-(b), s0) => A.point((w, b, s0))
     })
   }
@@ -198,9 +198,8 @@ private trait ReaderWriterStateTMonad[F[_], R, W, S]
     ReaderWriterStateT((_, s) => fa.run(k, s))
   override def asks[A](f: R => A): ReaderWriterStateT[F, R, W, S, A] =
     ReaderWriterStateT((r, s) => F.point((W.zero, f(r), s)))
-  def init: ReaderWriterStateT[F, R, W, S, S] =
+  def get: ReaderWriterStateT[F, R, W, S, S] =
     ReaderWriterStateT((_, s) => F.point((W.zero, s, s)))
-  def get = init
   def put(s: S): ReaderWriterStateT[F, R, W, S, Unit] =
     ReaderWriterStateT((r, _) => F.point((W.zero, (), s)))
   override def modify(f: S => S): ReaderWriterStateT[F, R, W, S, Unit] =
@@ -219,10 +218,7 @@ private trait ReaderWriterStateTHoist[R, W, S] extends Hoist[λ[(α[_], β) => R
   implicit def W: Monoid[W]
 
   def hoist[M[_], N[_]](f: M ~> N)(implicit M: Monad[M]) =
-    new (ReaderWriterStateT[M, R, W, S, ?] ~> ReaderWriterStateT[N, R, W, S, ?]) {
-      def apply[A](ma: ReaderWriterStateT[M, R, W, S, A]): ReaderWriterStateT[N, R, W, S, A] =
-        ma.mapT(f)
-    }
+    λ[ReaderWriterStateT[M, R, W, S, ?] ~> ReaderWriterStateT[N, R, W, S, ?]](_ mapT f)
 
   def liftM[M[_], A](ma: M[A])(implicit M: Monad[M]): ReaderWriterStateT[M, R, W, S, A] =
     ReaderWriterStateT( (r,s) => M.map(ma)((W.zero, _, s)))

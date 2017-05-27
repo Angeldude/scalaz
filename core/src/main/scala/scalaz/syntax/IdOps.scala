@@ -3,7 +3,7 @@ package syntax
 
 import annotation.tailrec
 
-final class IdOps[A](val self: A) extends AnyVal {
+final class IdOps[A](private val self: A) extends AnyVal {
   /**Returns `self` if it is non-null, otherwise returns `d`. */
   final def ??(d: => A)(implicit ev: Null <:< A): A =
     if (self == null) d else self
@@ -20,7 +20,7 @@ final class IdOps[A](val self: A) extends AnyVal {
     (self, self)
 
   /**
-   * @return the result of pf(value) if defined, otherwise the the Zero element of type B.
+   * @return the result of pf(value) if defined, otherwise the Zero element of type B.
    */
   def matchOrZero[B: Monoid](pf: PartialFunction[A, B]): B =
     pf.lift(self) match {

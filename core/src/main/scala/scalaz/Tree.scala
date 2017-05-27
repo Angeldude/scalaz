@@ -180,7 +180,7 @@ sealed abstract class TreeInstances {
           case \&/.That(stb) ⇒ stb map {b ⇒ f(\&/.That(b))}
           case \&/(sta, stb) ⇒ align(sta, stb)
         })(ta.subForest, tb.subForest))
-      align _
+      align
     }
     def zip[A, B](aa: => Tree[A], bb: => Tree[B]) = {
       val a = aa
@@ -234,7 +234,7 @@ object Tree extends TreeInstances {
   }
 
   /**
-   *  Leaf represents a a tree node with no children.
+   *  Leaf represents a tree node with no children.
    *
    *  You can use Leaf for tree construction or pattern matching.
    */

@@ -85,7 +85,7 @@ final case class Kleisli[M[_], A, B](run: A => M[B]) { self =>
   def endo(implicit M: Functor[M], ev: A >~> B): Endomorphic[Kleisli[M, ?, ?], A] =
     Endomorphic[Kleisli[M, ?, ?], A](map(ev.apply))
 
-  def liftF(implicit F: Functor[Kleisli[M, A, ?]]) =
+  def liftF(implicit F: Functor[Kleisli[M, A, ?]]): Free[Kleisli[M, A, ?], B] =
     Free.liftF[Kleisli[M, A, ?], B](self)
 
   def tap(implicit F: Applicative[M]): Kleisli[M, A, A] =
@@ -316,8 +316,8 @@ private trait KleisliApplicative[F[_], R] extends Applicative[Kleisli[F, R, ?]] 
 private trait KleisliBindRec[F[_], R] extends BindRec[Kleisli[F, R, ?]] with KleisliBind[F, R] {
   implicit def F: BindRec[F]
 
-  def tailrecM[A, B](f: A => Kleisli[F, R, A \/ B])(a: A): Kleisli[F, R, B] =
-    Kleisli(r => F.tailrecM(f(_: A).run(r))(a))
+  def tailrecM[A, B](a: A)(f: A => Kleisli[F, R, A \/ B]): Kleisli[F, R, B] =
+    Kleisli(r => F.tailrecM(a)(f(_).run(r)))
 }
 
 private trait KleisliMonad[F[_], R] extends Monad[Kleisli[F, R, ?]] with KleisliApplicative[F, R] with KleisliBind[F, R] {
@@ -336,10 +336,7 @@ private trait KleisliMonadReader[F[_], R] extends MonadReader[Kleisli[F, R, ?], 
 
 private trait KleisliHoist[R] extends Hoist[Kleisli[?[_], R, ?]] {
   def hoist[M[_]: Monad, N[_]](f: M ~> N): Kleisli[M, R, ?] ~> Kleisli[N, R, ?] =
-    new (Kleisli[M, R, ?] ~> Kleisli[N, R, ?]) {
-      def apply[A](m: Kleisli[M, R, A]): Kleisli[N, R, A] =
-        m.mapT(f)
-    }
+    λ[Kleisli[M, R, ?] ~> Kleisli[N, R, ?]](_ mapT f)
 
   def liftM[G[_] : Monad, A](a: G[A]): Kleisli[G, R, A] =
     Kleisli(_ => a)

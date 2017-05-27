@@ -379,9 +379,25 @@ sealed abstract class ISet[A] {
     }
 
   /**
-    * For the `Functor` composition law to hold it is important that the `Order[B]` is substitutive for the `Order[A]` –
-    * that is, that the `Order[B]` should be __no stronger__, it should not distinguish two `B` instances that would
-    * be considered as equal `A` instances.
+    * The `Functor` composition law only holds for functions that preserve
+    * equivalence, i.e. for functions `f` such that
+    *
+    *  -  ∀ a1, a2 ∈ A
+    *    -  `Order[A].equal(a1, a2)` ⇒ `Order[B].equal(f(a1), f(a2))`
+    *
+    * In the case when the equivalence implied by `Order[A]` is in fact
+    * _equality_, i.e. the finest equivalence, i.e. satisfying the
+    * _substitution property_ (which is the above property quantified over
+    * all `f`, see [[https://en.wikipedia.org/wiki/Equality_(mathematics)#Some_basic_logical_properties_of_equality Wikipedia page on Equality]]),
+    * the requirement holds for all `f` by definition.
+    *
+    * When `Order` instances are viewed as "mere" equivalences (as opposed
+    * to equalities), we can loosely say that `ISet` is an (endo-)functor
+    * in the category _Equiv_ of sets with an equivalence relation (where
+    * the morphishms are equivalence-preserving functions, i.e. exactly the
+    * functions satisfying the above requirement). By contrast, [[Functor]]
+    * instances are functors in the _Scala_ category, whose morphisms are
+    * arbitrary functions, including the ones that don't preserve equivalence.
     *
     * '''Note:''' this is not able to implement `Functor` due to the `Order` constraint on the destination type,
     * however it still is a functor in the mathematical sense.
@@ -629,13 +645,14 @@ sealed abstract class ISetInstances {
       f.toAscList.mkString("ISet(", ",", ")")
   }
 
-  implicit def setMonoid[A: Order]: Monoid[ISet[A]] = new Monoid[ISet[A]] {
-    def zero: ISet[A] =
-      empty[A]
+  implicit def setMonoid[A: Order]: Monoid[ISet[A]] with Band[ISet[A]] =
+    new Monoid[ISet[A]] with Band[ISet[A]] {
+      def zero: ISet[A] =
+        empty[A]
 
-    def append(a: ISet[A], b: => ISet[A]): ISet[A] =
-      a union b
-  }
+      def append(a: ISet[A], b: => ISet[A]): ISet[A] =
+        a union b
+    }
 
   implicit val setFoldable: Foldable[ISet] = new Foldable[ISet] {
     override def findLeft[A](fa: ISet[A])(f: A => Boolean) =
