@@ -24,7 +24,7 @@ object OptionTest extends SpecLite {
   checkAll("Option", isEmpty.laws[Option])
   checkAll("Option", cobind.laws[Option])
   checkAll("Option", align.laws[Option])
-  checkAll("Option", band.laws[Option[ISet[Int]]])
+  checkAll("Option", semilattice.laws[Option[ISet[Int]]])
 
   checkAll("Option @@ First", monoid.laws[FirstOption[Int]])
   checkAll("Option @@ Last", monoid.laws[LastOption[Int]])
@@ -57,6 +57,7 @@ object OptionTest extends SpecLite {
     def equal[A: Equal] = Equal[Option[A]]
     def order[A: Order] = Order[Option[A]]
     def semigroup[A: Semigroup] = Monoid[Option[A]]
+    def semiLattice[A: SemiLattice] = SemiLattice[Option[A]]
     def bindRec[A] = BindRec[Option]
     def monad[A] = Monad[Option]
 
@@ -65,5 +66,6 @@ object OptionTest extends SpecLite {
 
     // checking absence of ambiguity
     def equal[A: Order] = Equal[Option[A]]
+    def monoid[A: SemiLattice] = Monoid[Option[A]]
   }
 }

@@ -120,6 +120,16 @@ object ScalazProperties {
       }
   }
 
+  object semilattice {
+    def commutative[A](implicit A: SemiLattice[A], eq: Equal[A], arb: Arbitrary[A]): Prop = forAll(A.semiLatticeLaw.commutative _)
+
+    def laws[A: Equal: Arbitrary](implicit A: SemiLattice[A]): Properties =
+      newProperties("semilattice") { p =>
+        p.include(band.laws[A])
+        p.property("commutative") = commutative[A]
+    }
+  }
+
   object invariantFunctor {
     def identity[F[_], X](implicit F: InvariantFunctor[F], afx: Arbitrary[F[X]], ef: Equal[F[X]]): Prop =
       forAll(F.invariantFunctorLaw.invariantIdentity[X] _)
@@ -241,6 +251,7 @@ object ScalazProperties {
     def laws[M[_]](implicit a: BindRec[M], am: Arbitrary[M[Int]],
                    af: Arbitrary[Int => M[Int]], ag: Arbitrary[M[Int => Int]], e: Equal[M[Int]]): Properties =
       newProperties("bindRec") { p =>
+        p.include(bind.laws[M])
         p.property("tailrecM is consistent with bind") = bindRec.tailrecBindConsistency[M, Int]
       }
   }
@@ -376,7 +387,7 @@ object ScalazProperties {
     def rightPlusIdentity[F[_], X](implicit f: PlusEmpty[F], afx: Arbitrary[F[X]], ef: Equal[F[X]]): Prop =
       forAll(f.plusEmptyLaw.rightPlusIdentity[X] _)
 
-    def laws[F[_]](implicit F: PlusEmpty[F], afx: Arbitrary[F[Int]], af: Arbitrary[Int => Int], ef: Equal[F[Int]]): Properties =
+    def laws[F[_]](implicit F: PlusEmpty[F], afx: Arbitrary[F[Int]], ef: Equal[F[Int]]): Properties =
       newProperties("plusEmpty") { p =>
         p.include(plus.laws[F])
         p.include(monoid.laws[F[Int]](F.monoid[Int], implicitly, implicitly))

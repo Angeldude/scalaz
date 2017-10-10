@@ -203,6 +203,18 @@ object ScalazArbitrary extends ScalazArbitraryPlatform {
   implicit def cogenLazyTuple4[A1: Cogen, A2: Cogen, A3: Cogen, A4: Cogen]: Cogen[LazyTuple4[A1, A2, A3, A4]] =
     Cogen[(A1, A2, A3, A4)].contramap(t => (t._1, t._2, t._3, t._4))
 
+  implicit def cogenAp[F[_], A](implicit F: Cogen[F[A]]): Cogen[Ap[F, A]] =
+    F.contramap(_.f)
+
+  implicit def apArbitrary[F[_], A](implicit F: Arbitrary[F[A]]): Arbitrary[Ap[F, A]] =
+    Functor[Arbitrary].map(F)(Ap[F, A](_))
+
+  implicit def cogenAlter[F[_], A](implicit F: Cogen[F[A]]): Cogen[Alter[F, A]] =
+    F.contramap(_.f)
+
+  implicit def alterArbitrary[F[_], A](implicit F: Arbitrary[F[A]]): Arbitrary[Alter[F, A]] =
+    Functor[Arbitrary].map(F)(Alter[F, A](_))
+
   implicit def monoidCoproductArbitrary[M: Arbitrary, N: Arbitrary]: Arbitrary[M :+: N] =
     Functor[Arbitrary].map(arb[Vector[M \/ N]])(new :+:(_))
 
@@ -559,9 +571,6 @@ object ScalazArbitrary extends ScalazArbitraryPlatform {
   implicit def listTArb[F[_], A](implicit FA: Arbitrary[F[List[A]]], F: Applicative[F]): Arbitrary[ListT[F, A]] = Functor[Arbitrary].map(FA)(ListT.fromList(_))
 
   implicit def streamTArb[F[_], A](implicit FA: Arbitrary[F[Stream[A]]], F: Applicative[F]): Arbitrary[StreamT[F, A]] = Functor[Arbitrary].map(FA)(StreamT.fromStream(_))
-
-  // workaround bug in Scalacheck 1.8-SNAPSHOT.
-  private def arbDouble: Arbitrary[Double] = Arbitrary { Gen.oneOf(posNum[Double], negNum[Double])}
 
   implicit def CaseInsensitiveArbitrary[A](implicit A0: Arbitrary[A], A1: FoldCase[A]): Arbitrary[CaseInsensitive[A]] =
     Functor[Arbitrary].map(A0)(CaseInsensitive(_))

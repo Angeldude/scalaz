@@ -63,7 +63,7 @@ sealed abstract class IO[A] {
     })
 
   /** Lift this action to a given IO-like monad. */
-  def liftIO[M[_]](implicit m: MonadIO[M]): M[A] =
+  def liftIO[M[_]](implicit m: LiftIO[M]): M[A] =
     m.liftIO(this)
 
   /** Executes the handler if an exception is raised. */
@@ -225,7 +225,7 @@ object IO extends IOInstances {
   import scalaz.Isomorphism.<~>
 
   /** Hoist RunInBase given a natural isomorphism between the two functors */
-  def hoistRunInBase[F[_], G[_]](r: RunInBase[G, IO])(implicit iso: F <~> G): RunInBase[F, IO] =
+  def hoistRunInBase[F[_], G[_]](iso: F <~> G)(r: RunInBase[G, IO]): RunInBase[F, IO] =
     new RunInBase[F, IO] {
       def apply[B] = (x: F[B]) => r.apply(iso.to(x)).map(iso.from(_))
     }
